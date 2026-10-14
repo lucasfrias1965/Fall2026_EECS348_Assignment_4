@@ -474,7 +474,7 @@ This branch is consistent. Consistency for our Sudoku will assume that our value
 
 Because we iterately want to check every element for each possibility, assume that all possible ranges are valid. That is, 1, 2, 3 in our example range for t are valid for some row. Let M denote the max of our range. Therefore, this means that if all branches must be fully calculated out, for one part, it becomes
 ```
-O(N^M)
+O(M^N)
 where N is our space input size
 and M is the range of our values
 ```
@@ -482,14 +482,14 @@ and M is the range of our values
 To use the more specific for our problem, we can say that the WCE would then be
 
 ```
-O(N^9)
+O(9^N)
 where N is our space input size
 and max of t where 0 <= t  <= 9 == 9
 ```
 
 The problem with determining this is there is a psuedo random real factor of what possibilities we can represent as we go down in the depth. There is likely not a scenario where this worst case will ever occur because of the shrinking of inputs and problems. Still, this is a bad time complexity to have. For our input size and spacing though, it's fine. Worst case scenario, assume that we have a fully blank Sudoku board and wish to calculate all permutations. This would be
 
-O(81^9) = 150,094,635,296,999,121
+O(9^81) = 196627050475552913618075908526912116283103450944214766927315415537966391196809
 
 which is very large. I ran this on my Mac for about ten minutes and did not get a solution, but there would also be this many solutions to calculate.
 
@@ -714,7 +714,7 @@ unknowns     anthropic        google
 ```
 with Gemini just shaving an extra 61 permutations before elapsing past.
 
-This, when turned into a function, essentially turns into an exponential function. This means that our actual time complexity is not exactly n^9. e^n grows slower than n^9 for normal input values, although at the n=30 mark e^x begins to outpace our n^9 theoretical prediction. There is a likely chance my theoretical part is missing some extra growth factor as stated before, but I am suprised it is an undershoot instead of an overshoot.
+This, when turned into a function, essentially turns into an exponential function. This matches our time complexity of 9^n fairly well, and we can see that this naive solution can't be save by Moore's law. 
 
 So we can clearly see that this is a bad time complexity, but also under the constraints of the prompt implemented well. And for sufficiently normal solution sudoko this doesn't matter.
 
