@@ -945,7 +945,7 @@ This is the latest C++17 standard, which of course means that it will take anoth
 
 I cannot blame the AI for the sins of C++, however. Let's move on
 
-##Suffix vs Prefix Incremenetation
+## Suffix vs Prefix Incremenetation
 
 I don't know if this is an explicit style guide given to the models because of past mistakes, but in many places, all of the models will insist on doing suffix incrementation such as:
 
