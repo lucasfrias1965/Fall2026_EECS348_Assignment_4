@@ -1036,7 +1036,7 @@ This makes sense as we initialise all the members **with the data that we need t
 			return False
 ```
 
-This seems pretty strange. Not the level of trust. In our first example, we could have users pass bad data and interface with our class incorrectly. But the question is this: if the constructor and interface are completely controlled by us, why not do sepearte input validation before creating the object, and then loading the constructor? 
+This seems pretty strange. Not the level of trust. In our first example, we could have users pass bad data and interface with our class incorrectly. But the question is this: if the constructor and interface are completely controlled by us, why not do seperate input validation before creating the object, and then loading the constructor? 
 
 This might seem nitpicky, but I genuinely assure that there is a reason for this difference. In one instance, when we don't do input validation until after the constructor, we create and discard empty Sudoku boards. But if we check that our input file is good before loading it in, we lower the hurdle of having to interface through a method and continous calling to empty class objects.
 
