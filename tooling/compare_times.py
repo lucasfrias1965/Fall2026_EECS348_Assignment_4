@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Compare wall-clock time of ./anthropic and ./google as a Sudoku gets harder.
+"""Compare wall-clock time and stack usage of ./anthropic and ./google as a
+Sudoku gets harder.
 
 Starts from a fully solved board, blanks one more random cell each round,
-writes the board to the puzzle file, and times both solvers on it. A solver
-is dropped once it passes the cutoff; the run ends when both have.
+writes the board to the puzzle file, and times both solvers on it. Each run
+is wrapped in `/usr/bin/time -l`, whose "maximum resident set size" is used
+as a proxy for stack frame complexity: this recursive DFS solver's memory
+growth is almost entirely the call stack, since the board itself is a fixed
+9x9 array reused in place. A solver is dropped once it passes the cutoff;
+the run ends when both have.
 
 Both binaries are run with no arguments from their own directory, so each
 run solves puzzle1.txt .. puzzle5.txt; only puzzle5.txt changes, and round 0
@@ -12,7 +17,10 @@ run solves puzzle1.txt .. puzzle5.txt; only puzzle5.txt changes, and round 0
 
 import argparse
 import csv
+import os
 import random
+import re
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -32,6 +40,7 @@ SOLVED = """\
 SOLVERS = ["anthropic", "google"]
 UNKNOWN = "_"
 ROOT = Path(__file__).resolve().parent.parent
+MAXRSS_RE = re.compile(rb"(\d+)\s+maximum resident set size")
 
 
 def write_board(path, board):
@@ -39,19 +48,34 @@ def write_board(path, board):
 
 
 def time_solver(exe, cwd, cutoff):
-    """Return elapsed real seconds, or None if the solver passed the cutoff."""
+    """Run exe under `/usr/bin/time -l` and return (elapsed seconds, peak
+    stack/heap bytes), or None if the solver passed the cutoff.
+
+    Runs in its own process group so a timeout can kill the whole `time` +
+    solver tree instead of leaving the solver running in the background.
+    """
+    proc = subprocess.Popen(
+        ["/usr/bin/time", "-l", str(exe)], cwd=cwd,
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
     start = time.perf_counter()
     try:
-        subprocess.run([str(exe)], cwd=cwd, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, timeout=cutoff)
+        _, stderr = proc.communicate(timeout=cutoff)
     except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
         return None
-    return time.perf_counter() - start
+    elapsed = time.perf_counter() - start
+
+    match = MAXRSS_RE.search(stderr)
+    max_rss = int(match.group(1)) if match else 0
+    return elapsed, max_rss
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dir", type=Path, default=ROOT / "exec" / "mac_x86",
+    parser.add_argument("--dir", type=Path, default=ROOT / "exec" / "mac_arm",
                         help="directory holding the two binaries and the puzzle file")
     parser.add_argument("--puzzle", default="puzzle5.txt",
                         help="puzzle file (inside --dir) to overwrite each round")
@@ -76,7 +100,10 @@ def main():
     active = list(SOLVERS)
     rows = []
 
-    print(f"{'unknowns':>8}  " + "  ".join(f"{s:>12}" for s in SOLVERS))
+    # Two columns per solver: wall-clock seconds and peak RSS (KB), the
+    # latter standing in for stack frame complexity (see module docstring).
+    header_cols = [f"{s}_{suffix}" for s in SOLVERS for suffix in ("sec", "rss_kb")]
+    print(f"{'unknowns':>8}  " + "  ".join(f"{h:>12}" for h in header_cols))
     try:
         for unknowns in range(len(cells) + 1):
             if unknowns:
@@ -86,17 +113,22 @@ def main():
 
             row = {"unknowns": unknowns}
             for solver in SOLVERS:
+                sec_key, rss_key = f"{solver}_sec", f"{solver}_rss_kb"
                 if solver not in active:
-                    row[solver] = ""
+                    row[sec_key] = ""
+                    row[rss_key] = ""
                     continue
-                elapsed = time_solver(args.dir / solver, args.dir, args.cutoff)
-                if elapsed is None:
+                result = time_solver(args.dir / solver, args.dir, args.cutoff)
+                if result is None:
                     active.remove(solver)
-                    row[solver] = f">{args.cutoff:g}"
+                    row[sec_key] = f">{args.cutoff:g}"
+                    row[rss_key] = ""
                 else:
-                    row[solver] = f"{elapsed:.4f}"
+                    elapsed, max_rss = result
+                    row[sec_key] = f"{elapsed:.4f}"
+                    row[rss_key] = f"{max_rss / 1024:.0f}"
             rows.append(row)
-            print(f"{unknowns:>8}  " + "  ".join(f"{row[s] or '-':>12}" for s in SOLVERS),
+            print(f"{unknowns:>8}  " + "  ".join(f"{row[h] or '-':>12}" for h in header_cols),
                   flush=True)
 
             if not active:
@@ -108,7 +140,7 @@ def main():
         else:
             puzzle.unlink(missing_ok=True)
         with args.csv.open("w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["unknowns"] + SOLVERS)
+            writer = csv.DictWriter(f, fieldnames=["unknowns"] + header_cols)
             writer.writeheader()
             writer.writerows(rows)
         print(f"saved {args.csv}")
