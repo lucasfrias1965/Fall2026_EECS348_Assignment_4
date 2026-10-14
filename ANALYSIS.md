@@ -718,7 +718,7 @@ This, when turned into a function, essentially turns into an exponential functio
 
 So we can clearly see that this is a bad time complexity, but also under the constraints of the prompt implemented well. And for sufficiently normal solution sudoko this doesn't matter.
 
-## Space Complexity
+# Space Complexity
 
 # Theoretical 
 Theoretically, we have a space complexity of O(1) for all input sizes. This is because we don't actually store anything except for a contant linear board that just changes it's elements. There's no way that the space complexity changes any more than the initial variables and sudoku size (which is fixed at 9x9). However, what is more interesting is the amount of stacks consumed during execution.
